@@ -1,3 +1,4 @@
+## Basic Computing
 1. At the core of modern computing is the microprocessor, a self-contained unit etched with microscopic gates and channels that performs fundamental data processing.
 2. The calculator model conceptualizes a computer as feeding an instruction stream and a data stream into the arithmetic logic unit to produce an output stream of results.
 3. The file-clerk model defines computation as a continuous read-modify-write cycle where numbers are retrieved, altered, and written back to storage until a halt condition.
