@@ -444,3 +444,354 @@ Not only do the ellipsis throw away the type of the parameters, it also throws a
 
 
 ## 20.6 Introduction to lambdas (anonymous functions)
+
+1. A lambda expression (also called a lambda or closure) allows us to define an anonymous function inside another function. The nesting is important, as it allows us both to avoid namespace naming pollution, and to define the function as close to where it is used as possible (providing additional context).
+
+The syntax for lambdas is one of the weirder things in C++, and takes a bit of getting used to. Lambdas take the form:
+
+[ captureClause ] ( parameters ) -> returnType
+{
+    statements;
+}
+
+* The capture clause can be empty if no captures are needed.
+* The parameter list can be empty if no parameters are required. It can also be omitted entirely unless a return type is specified.
+* The return type is optional, and if omitted, auto will be assumed (thus using type deduction used to determine the return type). While we previously noted that type deduction for function return types should be avoided, in this context, it’s fine to use (because these functions are typically so trivial).
+
+Also note that lambdas (being anonymous) have no name, so we don’t need to provide one.
+
+This means a trivial lambda definition looks like this:
+
+```c++
+#include <iostream>
+
+int main()
+{
+  [] {}; // a lambda with an omitted return type, no captures, and omitted parameters.
+
+  return 0;
+}
+```
+
+2. An example:
+
+```c++
+#include <algorithm>
+#include <array>
+#include <iostream>
+#include <string_view>
+
+// Our function will return true if the element matches
+bool containsNut(std::string_view str)
+{
+    // std::string_view::find returns std::string_view::npos if it doesn't find
+    // the substring. Otherwise it returns the index where the substring occurs
+    // in str.
+    return str.find("nut") != std::string_view::npos;
+}
+
+int main()
+{
+    constexpr std::array<std::string_view, 4> arr{ "apple", "banana", "walnut", "lemon" };
+
+    // Scan our array to see if any elements contain the "nut" substring
+    auto found{ std::find_if(arr.begin(), arr.end(), containsNut) };
+
+    if (found == arr.end())
+    {
+        std::cout << "No nuts\n";
+    }
+    else
+    {
+        std::cout << "Found " << *found << '\n';
+    }
+
+    return 0;
+}
+```
+
+Becomes:
+
+```c++
+#include <algorithm>
+#include <array>
+#include <iostream>
+#include <string_view>
+
+int main()
+{
+  constexpr std::array<std::string_view, 4> arr{ "apple", "banana", "walnut", "lemon" };
+
+  // Define the function right where we use it.
+  auto found{ std::find_if(arr.begin(), arr.end(),
+                           [](std::string_view str) // here's our lambda, no capture clause
+                           {
+                             return str.find("nut") != std::string_view::npos;
+                           }) };
+
+  if (found == arr.end())
+  {
+    std::cout << "No nuts\n";
+  }
+  else
+  {
+    std::cout << "Found " << *found << '\n';
+  }
+
+  return 0;
+}
+```
+
+Lambdas are preferred over normal functions when we need a trivial, one-off function to pass as an argument to some other function.
+
+3. In the above example, we defined a lambda right where it was needed. This use of a lambda is sometimes called a function literal. For example, in the following snippet, we’re using std::all_of to check if all elements of an array are even:
+
+```c++
+// Bad: We have to read the lambda to understand what's happening.
+return std::all_of(array.begin(), array.end(), [](int i){ return ((i % 2) == 0); });
+```
+
+We can improve the readability of this as follows:
+
+```c++
+// Good: Instead, we can store the lambda in a named variable and pass it to the function.
+auto isEven{
+  [](int i)
+  {
+    return (i % 2) == 0;
+  }
+};
+
+return std::all_of(array.begin(), array.end(), isEven);
+```
+
+4. As it turns out, lambdas don’t have a type that we can explicitly use. When we write a lambda, the compiler generates a unique type just for the lambda that is not exposed to us. In actuality, lambdas aren’t functions (which is part of how they avoid the limitation of C++ not supporting nested functions). They’re a special kind of object called a functor. Functors are objects that contain an overloaded operator() that make them callable like a function.
+
+5. Although we don’t know the type of a lambda, there are several ways of storing a lambda for use post-definition. If the lambda has an empty capture clause (nothing between the hard brackets []), we can use a regular function pointer. std::function or type deduction via the auto keyword will also work (even if the lambda has a non-empty capture).
+
+```c++
+#include <functional>
+
+int main()
+{
+  // A regular function pointer. Only works with an empty capture clause (empty []).
+  double (*addNumbers1)(double, double){
+    [](double a, double b) {
+      return a + b;
+    }
+  };
+
+  addNumbers1(1, 2);
+
+  // Using std::function. The lambda could have a non-empty capture clause (discussed next lesson).
+  std::function addNumbers2{ // note: pre-C++17, use std::function<double(double, double)> instead
+    [](double a, double b) {
+      return a + b;
+    }
+  };
+
+  addNumbers2(3, 4);
+
+  // Using auto. Stores the lambda with its real type.
+  auto addNumbers3{
+    [](double a, double b) {
+      return a + b;
+    }
+  };
+
+  addNumbers3(5, 6);
+
+  return 0;
+}
+```
+
+What if we want to pass a lambda to a function? There are 4 options:
+
+```c++
+#include <functional>
+#include <iostream>
+
+// Case 1: use a `std::function` parameter
+void repeat1(int repetitions, const std::function<void(int)>& fn)
+{
+    for (int i{ 0 }; i < repetitions; ++i)
+        fn(i);
+}
+
+// Case 2: use a function template with a type template parameter
+template <typename T>
+void repeat2(int repetitions, const T& fn)
+{
+    for (int i{ 0 }; i < repetitions; ++i)
+        fn(i);
+}
+
+// Case 3: use the abbreviated function template syntax (C++20)
+void repeat3(int repetitions, const auto& fn)
+{
+    for (int i{ 0 }; i < repetitions; ++i)
+        fn(i);
+}
+
+// Case 4: use function pointer (only for lambda with no captures)
+void repeat4(int repetitions, void (*fn)(int))
+{
+    for (int i{ 0 }; i < repetitions; ++i)
+        fn(i);
+}
+
+int main()
+{
+    auto lambda = [](int i)
+    {
+        std::cout << i << '\n';
+    };
+
+    repeat1(3, lambda);
+    repeat2(3, lambda);
+    repeat3(3, lambda);
+    repeat4(3, lambda);
+
+    return 0;
+}
+```
+
+When storing a lambda in a variable, use auto as the variable’s type.
+
+6. Because lambdas with one or more auto parameter can potentially work with a wide variety of types, they are called generic lambdas. 
+
+As of C++17, lambdas are implicitly constexpr if the result satisfies the requirements of a constant expression. This generally requires two things:
+* The lambda must either have no captures, or all captures must be constexpr.
+* The functions called by the lambda must be constexpr. 
+
+Note that if the generic lambda uses static duration variables, those variables are not shared between the generated lambdas.
+
+
+## 20.7 Lambda captures
+
+1. Lambdas can only access certain kinds of objects that have been defined outside the lambda. This includes:
+* Objects with static (or thread local) storage duration (this includes global variables and static locals)
+* Objects that are constexpr (explicitly or implicitly)
+
+2. The capture clause is used to (indirectly) give a lambda access to variables available in the surrounding scope that it normally would not have access to. All we need to do is list the entities we want to access from within the lambda as part of the capture clause. In this case, we want to give our lambda access to the value of variable search, so we add it to the capture clause:
+
+```c++
+#include <algorithm>
+#include <array>
+#include <iostream>
+#include <string_view>
+#include <string>
+
+int main()
+{
+  std::array<std::string_view, 4> arr{ "apple", "banana", "walnut", "lemon" };
+
+  std::cout << "search for: ";
+
+  std::string search{};
+  std::cin >> search;
+
+  // Capture @search                                vvvvvv
+  auto found{ std::find_if(arr.begin(), arr.end(), [search](std::string_view str) {
+    return str.find(search) != std::string_view::npos;
+  }) };
+
+  if (found == arr.end())
+  {
+    std::cout << "Not found\n";
+  }
+  else
+  {
+    std::cout << "Found " << *found << '\n';
+  }
+
+  return 0;
+}
+```
+
+When a lambda definition is executed, for each variable that the lambda captures, a clone of that variable is made (with an identical name) inside the lambda. These cloned variables are initialized from the outer scope variables of the same name at this point. 
+
+The captured variables of a lambda are copies of the outer scope variables, not the actual variables.
+
+When a lambda is called, operator() is invoked. By default, this operator() treats captures as const, meaning the lambda is not allowed to modify those captures.
+
+To allow modifications of variables that were captured, we can mark the lambda as mutable:
+
+```c++
+#include <iostream>
+
+int main()
+{
+  int ammo{ 10 };
+
+  auto shoot{
+    [ammo]() mutable { // now mutable
+      // We're allowed to modify ammo now
+      --ammo;
+
+      std::cout << "Pew! " << ammo << " shot(s) left.\n";
+    }
+  };
+
+  shoot();
+  shoot();
+
+  std::cout << ammo << " shot(s) left\n";
+
+  return 0;
+}
+```
+
+Because captured variables are members of the lambda object, their values are persisted across multiple calls to the lambda!
+
+Much like functions can change the value of arguments passed by reference, we can also capture variables by reference to allow our lambda to affect the value of the argument.
+
+Multiple variables can be captured by separating them with a comma. This can include a mix of variables captured by value or by reference:
+```c++
+int health{ 33 };
+int armor{ 100 };
+std::vector<CEnemy> enemies{};
+
+// Capture health and armor by value, and enemies by reference.
+[health, armor, &enemies](){};
+```
+
+A default capture (also called a capture-default) captures all variables that are mentioned in the lambda. Variables not mentioned in the lambda are not captured if a default capture is used.
+* To capture all used variables by value, use a capture value of =.
+* To capture all used variables by reference, use a capture value of &.
+
+Default captures can be mixed with normal captures. We can capture some variables by value and others by reference, but each variable can only be captured once.
+```c++
+int health{ 33 };
+int armor{ 100 };
+std::vector<CEnemy> enemies{};
+
+// Capture health and armor by value, and enemies by reference.
+[health, armor, &enemies](){};
+
+// Capture enemies by reference and everything else by value.
+[=, &enemies](){};
+
+// Capture armor by value and everything else by reference.
+[&, armor](){};
+
+// Illegal, we already said we want to capture everything by reference.
+[&, &armor](){};
+
+// Illegal, we already said we want to capture everything by value.
+[=, armor](){};
+
+// Illegal, armor appears twice.
+[armor, &health, &armor](){};
+
+// Illegal, the default capture has to be the first element in the capture group.
+[armor, &](){};
+```
+
+Sometimes we want to capture a variable with a slight modification or declare a new variable that is only visible in the scope of the lambda. We can do so by defining a variable in the lambda-capture without specifying its type.
+
+Variables are captured at the point where the lambda is defined. If a capture by reference dies before the lambda, the lambda will be holding a dangling reference.
+
+3. Try to avoid mutable lambdas. 
+
+4. Although lambdas look like functions, they’re actually objects that can be called like functions -- these are called functors. When the compiler encounters a lambda definition, it creates a custom object definition for the lambda. Each captured variable becomes a data member of the object. At runtime, when the lambda definition is encountered, the lambda object is instantiated, and the members of the lambda are initialized at that point.
