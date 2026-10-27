@@ -6,10 +6,10 @@ using namespace std::literals::string_literals;
 
 int main()
 {
-    [[maybe_unused]] using Int3Bit = std::bitset<3>;     // Can represent 0 to 7 
-    [[maybe_unused]] using Int24Bit = std::bitset<24>;   
-    [[maybe_unused]] using Int99Bit = std::bitset<99>;   
-    [[maybe_unused]] using Int1Bit = std::bitset<1>;     // Can represent 0 to 1
+    using Int3Bit = std::bitset<3>;     // Can represent 0 to 7 
+    using Int24Bit = std::bitset<24>;   
+    using Int99Bit = std::bitset<99>;   
+    using Int1Bit = std::bitset<1>;     // Can represent 0 to 1
 
     Int3Bit zero{ 0 };
     std::cout << zero.to_ullong() << '\n';
